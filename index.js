@@ -298,18 +298,22 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'elementchart') {
     await interaction.deferReply();
     try {
-      const buf = await drawTypeChart();
+      const fetch = (await import('node-fetch')).default;
+      // ดึงรูปตารางธาตุจาก Bulbapedia
+      const imageUrl = 'https://archives.bulbagarden.net/media/upload/thumb/9/97/Type_chart_Gen_VI_and_later.png/1200px-Type_chart_Gen_VI_and_later.png';
+      const res = await fetch(imageUrl);
+      const buf = Buffer.from(await res.arrayBuffer());
       const attachment = new AttachmentBuilder(buf, { name: 'type-chart.png' });
       const embed = new EmbedBuilder()
         .setColor('#1a1a2e')
         .setTitle('🗺️ Pokémon Type Effectiveness Chart (Gen 6+)')
-        .setDescription('**แถว = ประเภทโจมตี | คอลัมน์ = ประเภทป้องกัน**\n🟢 `2` ได้เปรียบ  🔴 `1/2` ไม่ได้เปรียบ  ⬛ `X` Immune')
+        .setDescription('**แถว = ประเภทโจมตี | คอลัมน์ = ประเภทป้องกัน**\n🟢 ได้เปรียบ  🔴 ไม่ได้เปรียบ  ⬛ Immune')
         .setImage('attachment://type-chart.png')
-        .setFooter({ text: 'ใช้ /check [ชื่อโปเกม่อน] เพื่อดูจุดอ่อนของโปเกม่อนแต่ละตัว' });
+        .setFooter({ text: 'ใช้ /check [ชื่อโปเกม่อน] เพื่อดูจุดอ่อนของโปเกม่อนแต่ละตัว • Source: Bulbapedia' });
       await interaction.editReply({ embeds: [embed], files: [attachment] });
     } catch (e) {
       console.error(e);
-      await interaction.editReply('❌ เกิดข้อผิดพลาดในการสร้างตาราง');
+      await interaction.editReply('❌ เกิดข้อผิดพลาดในการโหลดตาราง');
     }
   }
 
