@@ -52,8 +52,14 @@ function getEffectiveness(attackType, defType1, defType2 = null) {
 // ─── Draw Type Chart Image ────────────────────────────────────────────────────
 async function drawTypeChart() {
   const sharp = require('sharp');
+  const fs = require('fs');
+  const path = require('path');
 
-  // Abbreviations for type names (3-4 chars, ASCII only)
+  // Load embedded font (Roboto Bold) — works on any server without system fonts
+  const fontPath = path.join(__dirname, 'node_modules/@fontsource/roboto/files/roboto-latin-700-normal.woff');
+  const fontB64 = fs.readFileSync(fontPath).toString('base64');
+  const fontFace = `@font-face { font-family: 'R'; src: url('data:font/woff;base64,${fontB64}') format('woff'); font-weight: bold; }`;
+
   const TYPE_ABBR = {
     Normal:'NRM', Fire:'FIR', Water:'WTR', Electric:'ELC', Grass:'GRS', Ice:'ICE',
     Fighting:'FGT', Poison:'PSN', Ground:'GRD', Flying:'FLY', Psychic:'PSY', Bug:'BUG',
@@ -64,22 +70,17 @@ async function drawTypeChart() {
   const W = HEADER + TYPES.length * CELL;
   const H = HEADER + TYPES.length * CELL + 28;
 
-  // Embed a minimal monospace-style font subset via data URI isn't practical
-  // Instead use SVG with explicit font stack that works headlessly
-  const fontStack = `'DejaVu Sans','Liberation Sans',Arial,sans-serif`;
-
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">`;
-  svg += `<defs><style>text { font-family: ${fontStack}; }</style></defs>`;
+  svg += `<defs><style>${fontFace} text { font-family: 'R', sans-serif; font-weight: bold; }</style></defs>`;
   svg += `<rect width="${W}" height="${H}" fill="#1a1a2e"/>`;
 
-  // Column headers
+  // Column headers — stack 3 chars vertically
   TYPES.forEach((t, i) => {
     const x = HEADER + i * CELL;
     const abbr = TYPE_ABBR[t];
     svg += `<rect x="${x+1}" y="2" width="${CELL-2}" height="${HEADER-2}" fill="${TYPE_COLORS[t]}" rx="3"/>`;
-    // Draw each char stacked vertically
     for (let c = 0; c < abbr.length; c++) {
-      svg += `<text x="${x+CELL/2}" y="${8 + c*14}" fill="white" font-size="11" font-weight="bold" text-anchor="middle">${abbr[c]}</text>`;
+      svg += `<text x="${x+CELL/2}" y="${9+c*15}" fill="white" font-size="11" text-anchor="middle">${abbr[c]}</text>`;
     }
   });
 
@@ -88,7 +89,7 @@ async function drawTypeChart() {
     const y = HEADER + i * CELL;
     const abbr = TYPE_ABBR[t];
     svg += `<rect x="1" y="${y+1}" width="${HEADER-2}" height="${CELL-2}" fill="${TYPE_COLORS[t]}" rx="3"/>`;
-    svg += `<text x="${HEADER/2}" y="${y+CELL/2+4}" fill="white" font-size="10" font-weight="bold" text-anchor="middle">${abbr}</text>`;
+    svg += `<text x="${HEADER/2}" y="${y+CELL/2+5}" fill="white" font-size="10" text-anchor="middle">${abbr}</text>`;
   });
 
   // Cells
@@ -98,13 +99,13 @@ async function drawTypeChart() {
       const x = HEADER + di * CELL;
       const y = HEADER + ai * CELL;
       let bg = '#1e1e3a', text = '', textColor = '#fff';
-      if      (eff === 0)    { bg = '#2a2a2a'; text = 'X';  textColor = '#555'; }
+      if      (eff === 0)    { bg = '#2a2a2a'; text = 'X';   textColor = '#666'; }
       else if (eff === 0.25) { bg = '#6b0000'; text = '1/4'; }
       else if (eff === 0.5)  { bg = '#8b1a1a'; text = '1/2'; }
-      else if (eff === 2)    { bg = '#1a5c1a'; text = '2'; }
-      else if (eff === 4)    { bg = '#0a3d0a'; text = '4'; }
+      else if (eff === 2)    { bg = '#1a5c1a'; text = '2';   }
+      else if (eff === 4)    { bg = '#0a3d0a'; text = '4';   }
       svg += `<rect x="${x+1}" y="${y+1}" width="${CELL-2}" height="${CELL-2}" fill="${bg}"/>`;
-      if (text) svg += `<text x="${x+CELL/2}" y="${y+CELL/2+4}" fill="${textColor}" font-size="11" font-weight="bold" text-anchor="middle">${text}</text>`;
+      if (text) svg += `<text x="${x+CELL/2}" y="${y+CELL/2+5}" fill="${textColor}" font-size="12" text-anchor="middle">${text}</text>`;
     });
   });
 
