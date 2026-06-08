@@ -1,5 +1,4 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
-const { createCanvas } = require('@napi-rs/canvas');
 require('dotenv').config();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -50,55 +49,28 @@ function getEffectiveness(attackType, defType1, defType2 = null) {
   return e1 * e2;
 }
 
-// ─── Draw Type Chart Image ───────────────────────────────────────────────────
+// ─── Draw Type Chart Image (SVG → PNG via sharp) ────────────────────────────
 async function drawTypeChart() {
-  const CELL = 34, HEADER = 120, PAD = 6;
-  const W = HEADER + TYPES.length * CELL + PAD;
-  const H = HEADER + TYPES.length * CELL + PAD;
-  const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext('2d');
+  const sharp = require('sharp');
+  const CELL = 36, HEADER = 100;
+  const W = HEADER + TYPES.length * CELL;
+  const H = HEADER + TYPES.length * CELL + 30;
 
-  // Background
-  ctx.fillStyle = '#1a1a2e';
-  ctx.fillRect(0, 0, W, H);
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="font-family:Arial,Helvetica,sans-serif">`;
+  svg += `<rect width="${W}" height="${H}" fill="#1a1a2e"/>`;
 
-  // Title row (defender = column)
-  ctx.font = 'bold 13px Sans';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
+  // Column headers (rotated type names)
   TYPES.forEach((t, i) => {
-    const x = HEADER + i * CELL + CELL / 2;
-    // Header bg
-    ctx.fillStyle = TYPE_COLORS[t];
-    ctx.beginPath();
-    ctx.roundRect(HEADER + i * CELL + 2, 4, CELL - 4, HEADER - 8, 4);
-    ctx.fill();
-    // Rotated text
-    ctx.save();
-    ctx.translate(x, HEADER / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillStyle = '#fff';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 3;
-    ctx.fillText(t, 0, 0);
-    ctx.restore();
+    const x = HEADER + i * CELL;
+    svg += `<rect x="${x+2}" y="4" width="${CELL-4}" height="${HEADER-8}" rx="4" fill="${TYPE_COLORS[t]}"/>`;
+    svg += `<text x="${x + CELL/2}" y="${HEADER/2}" fill="white" font-size="11" font-weight="bold" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90,${x+CELL/2},${HEADER/2})">${t}</text>`;
   });
 
+  // Row headers
   TYPES.forEach((t, i) => {
-    const y = HEADER + i * CELL + CELL / 2;
-    // Row header bg
-    ctx.fillStyle = TYPE_COLORS[t];
-    ctx.beginPath();
-    ctx.roundRect(4, HEADER + i * CELL + 2, HEADER - 8, CELL - 4, 4);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 3;
-    ctx.font = 'bold 12px Sans';
-    ctx.textAlign = 'left';
-    ctx.fillText(t, 8, y);
-    ctx.shadowBlur = 0;
+    const y = HEADER + i * CELL;
+    svg += `<rect x="2" y="${y+2}" width="${HEADER-4}" height="${CELL-4}" rx="4" fill="${TYPE_COLORS[t]}"/>`;
+    svg += `<text x="${HEADER/2}" y="${y+CELL/2}" fill="white" font-size="11" font-weight="bold" text-anchor="middle" dominant-baseline="middle">${t}</text>`;
   });
 
   // Cells
@@ -107,41 +79,32 @@ async function drawTypeChart() {
       const eff = getEffectiveness(atk, def);
       const x = HEADER + di * CELL;
       const y = HEADER + ai * CELL;
-      let bg, text, textColor = '#fff';
-      if (eff === 0)   { bg = '#2d2d2d'; text = '✕'; textColor = '#888'; }
+      let bg = '#1e1e3a', text = '', textColor = '#fff';
+      if (eff === 0)        { bg = '#2a2a2a'; text = '✕'; textColor = '#666'; }
+      else if (eff === 0.25){ bg = '#6b0000'; text = '¼'; }
       else if (eff === 0.5) { bg = '#8b1a1a'; text = '½'; }
       else if (eff === 2)   { bg = '#1a5c1a'; text = '2×'; }
-      else                  { bg = '#1e1e3a'; text = ''; }
-
-      ctx.fillStyle = bg;
-      ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
-      if (text) {
-        ctx.fillStyle = textColor;
-        ctx.font = eff === 2 ? 'bold 12px Sans' : '13px Sans';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, x + CELL / 2, y + CELL / 2);
-      }
+      else if (eff === 4)   { bg = '#0a3d0a'; text = '4×'; }
+      svg += `<rect x="${x+1}" y="${y+1}" width="${CELL-2}" height="${CELL-2}" fill="${bg}"/>`;
+      if (text) svg += `<text x="${x+CELL/2}" y="${y+CELL/2}" fill="${textColor}" font-size="11" font-weight="bold" text-anchor="middle" dominant-baseline="middle">${text}</text>`;
     });
   });
 
   // Legend
-  const ly = H - 14;
-  ctx.font = '11px Sans';
-  ctx.textAlign = 'left';
-  [
-    { col:'#1a5c1a', label:'2× Super Effective' },
-    { col:'#8b1a1a', label:'½ Not Very Effective' },
-    { col:'#2d2d2d', label:'✕ Immune' },
-  ].forEach((item, i) => {
-    const lx = 8 + i * 180;
-    ctx.fillStyle = item.col;
-    ctx.fillRect(lx, ly - 6, 12, 12);
-    ctx.fillStyle = '#ccc';
-    ctx.fillText(item.label, lx + 16, ly);
+  const ly = HEADER + TYPES.length * CELL + 15;
+  const legend = [
+    { col:'#1a5c1a', label:'2x Super Effective' },
+    { col:'#8b1a1a', label:'1/2 Not Very Effective' },
+    { col:'#2a2a2a', label:'X Immune' },
+  ];
+  legend.forEach((item, i) => {
+    const lx = 10 + i * 210;
+    svg += `<rect x="${lx}" y="${ly-8}" width="12" height="12" fill="${item.col}"/>`;
+    svg += `<text x="${lx+16}" y="${ly+2}" fill="#ccc" font-size="11">${item.label}</text>`;
   });
 
-  return canvas.toBuffer('image/png');
+  svg += '</svg>';
+  return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 // ─── Fetch Pokémon from PokéAPI ──────────────────────────────────────────────
