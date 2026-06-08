@@ -268,15 +268,56 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'elementchart') {
     await interaction.deferReply();
     try {
-      const buf = await drawTypeChart();
-      const attachment = new AttachmentBuilder(buf, { name: 'type-chart.png' });
-      const embed = new EmbedBuilder()
-        .setColor('#1a1a2e')
-        .setTitle('🗺️ Pokémon Type Effectiveness Chart')
-        .setDescription('**Attacker →** (rows)  vs  **Defender ↓** (columns)\n`2×` Super Effective  `½` Not Very Effective  `✕` No Effect')
-        .setImage('attachment://type-chart.png')
-        .setFooter({ text: 'Generation 6+ type chart' });
-      await interaction.editReply({ embeds: [embed], files: [attachment] });
+      // Build text-based type chart (no image needed)
+      const TYPE_ABBR = {
+        Normal:'NRM', Fire:'FIR', Water:'WTR', Electric:'ELC', Grass:'GRS', Ice:'ICE',
+        Fighting:'FGT', Poison:'PSN', Ground:'GRD', Flying:'FLY', Psychic:'PSY', Bug:'BUG',
+        Rock:'ROK', Ghost:'GHO', Dragon:'DRG', Dark:'DRK', Steel:'STL', Fairy:'FAI',
+      };
+      const TYPE_EMOJI = {
+        Normal:'⬜', Fire:'🔥', Water:'💧', Electric:'⚡', Grass:'🌿', Ice:'❄️',
+        Fighting:'🥊', Poison:'☠️', Ground:'🌍', Flying:'🌬️', Psychic:'🔮', Bug:'🐛',
+        Rock:'🪨', Ghost:'👻', Dragon:'🐉', Dark:'🌑', Steel:'⚙️', Fairy:'🌸',
+      };
+
+      // Split into 3 groups of 6 types each for readability
+      const GROUPS = [
+        TYPES.slice(0, 6),
+        TYPES.slice(6, 12),
+        TYPES.slice(12, 18),
+      ];
+
+      const embeds = [];
+
+      GROUPS.forEach((defTypes, gi) => {
+        const header = '`ATK \\ DEF` ' + defTypes.map(t => TYPE_EMOJI[t] + '`' + TYPE_ABBR[t] + '`').join(' ');
+        const rows = TYPES.map(atk => {
+          const cells = defTypes.map(def => {
+            const eff = getEffectiveness(atk, def);
+            if (eff === 0)    return '` X  `';
+            if (eff === 0.25) return '`1/4 `';
+            if (eff === 0.5)  return '`1/2 `';
+            if (eff === 2)    return '` 2  `';
+            if (eff === 4)    return '` 4  `';
+            return '`  -  `';
+          });
+          return TYPE_EMOJI[atk] + '`' + TYPE_ABBR[atk] + '` ' + cells.join(' ');
+        });
+
+        embeds.push(new EmbedBuilder()
+          .setColor('#1a1a2e')
+          .setTitle(gi === 0 ? '🗺️ Pokémon Type Chart (Gen 6+)' : '\u200b')
+          .setDescription(header + '\n' + rows.join('\n'))
+        );
+      });
+
+      embeds[2].addFields({
+        name: 'คำอธิบาย',
+        value: '`2` = ได้เปรียบ (Super Effective)\n`1/2` = ไม่ได้เปรียบ (Not Very Effective)\n`X` = ไม่ส่งผล (Immune)\n`-` = ปกติ\n\n**แถว = ประเภทโจมตี | คอลัมน์ = ประเภทป้องกัน**',
+      });
+      embeds[2].setFooter({ text: 'ใช้ /check [ชื่อโปเกม่อน] เพื่อดูจุดอ่อนของโปเกม่อนแต่ละตัว' });
+
+      await interaction.editReply({ embeds });
     } catch (e) {
       console.error(e);
       await interaction.editReply('❌ เกิดข้อผิดพลาดในการสร้างตาราง');
