@@ -1,0 +1,5 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "fontconfig", "dejavu_fonts"]
+
+[phases.build]
+cmds = ["npm install", "fc-cache -fv"]
