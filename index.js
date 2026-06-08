@@ -127,7 +127,15 @@ async function drawTypeChart() {
 // ─── Fetch Pokémon from PokéAPI ──────────────────────────────────────────────
 async function fetchPokemon(nameOrId) {
   const fetch = (await import('node-fetch')).default;
-  const name = nameOrId.toLowerCase().trim().replace(/\s+/g, '-');
+  let name = nameOrId.toLowerCase().trim().replace(/\s+/g, '-');
+
+  // แปลง "mega-charizard-x" → "charizard-mega-x"
+  const megaMatch = name.match(/^mega-(.+?)(?:-(x|y))?$/);
+  if (megaMatch) {
+    name = megaMatch[2]
+      ? `${megaMatch[1]}-mega-${megaMatch[2]}`
+      : `${megaMatch[1]}-mega`;
+  }
   const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${name}`);
   if (!res.ok) return null;
   const data = await res.json();
