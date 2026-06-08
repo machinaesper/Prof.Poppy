@@ -51,13 +51,9 @@ function getEffectiveness(attackType, defType1, defType2 = null) {
 
 // ─── Draw Type Chart Image ────────────────────────────────────────────────────
 async function drawTypeChart() {
-  const sharp = require('sharp');
-  const fs = require('fs');
+  const PImage = require('pureimage');
   const path = require('path');
-
-  // Load embedded font (Roboto Bold) — works on any server without system fonts
-  const fontB64 = require('./fontdata');
-  const fontFace = `@font-face { font-family: 'R'; src: url('data:font/woff;base64,${fontB64}') format('woff'); font-weight: bold; }`;
+  const { PassThrough } = require('stream');
 
   const TYPE_ABBR = {
     Normal:'NRM', Fire:'FIR', Water:'WTR', Electric:'ELC', Grass:'GRS', Ice:'ICE',
@@ -65,21 +61,30 @@ async function drawTypeChart() {
     Rock:'ROK', Ghost:'GHO', Dragon:'DRG', Dark:'DRK', Steel:'STL', Fairy:'FAI',
   };
 
+  const font = PImage.registerFont(path.join(__dirname, 'assets', 'font.ttf'), 'F');
+  await font.load();
+
   const CELL = 38, HEADER = 52;
   const W = HEADER + TYPES.length * CELL;
   const H = HEADER + TYPES.length * CELL + 28;
 
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">`;
-  svg += `<defs><style>${fontFace} text { font-family: 'R', sans-serif; font-weight: bold; }</style></defs>`;
-  svg += `<rect width="${W}" height="${H}" fill="#1a1a2e"/>`;
+  const img = PImage.make(W, H);
+  const ctx = img.getContext('2d');
 
-  // Column headers — stack 3 chars vertically
+  // Background
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, W, H);
+
+  // Column headers — stack chars vertically
   TYPES.forEach((t, i) => {
     const x = HEADER + i * CELL;
     const abbr = TYPE_ABBR[t];
-    svg += `<rect x="${x+1}" y="2" width="${CELL-2}" height="${HEADER-2}" fill="${TYPE_COLORS[t]}" rx="3"/>`;
+    ctx.fillStyle = TYPE_COLORS[t];
+    ctx.fillRect(x + 1, 2, CELL - 2, HEADER - 2);
+    ctx.fillStyle = 'white';
+    ctx.font = '11px F';
     for (let c = 0; c < abbr.length; c++) {
-      svg += `<text x="${x+CELL/2}" y="${9+c*15}" fill="white" font-size="11" text-anchor="middle">${abbr[c]}</text>`;
+      ctx.fillText(abbr[c], x + CELL / 2 - 4, 12 + c * 14);
     }
   });
 
@@ -87,8 +92,11 @@ async function drawTypeChart() {
   TYPES.forEach((t, i) => {
     const y = HEADER + i * CELL;
     const abbr = TYPE_ABBR[t];
-    svg += `<rect x="1" y="${y+1}" width="${HEADER-2}" height="${CELL-2}" fill="${TYPE_COLORS[t]}" rx="3"/>`;
-    svg += `<text x="${HEADER/2}" y="${y+CELL/2+5}" fill="white" font-size="10" text-anchor="middle">${abbr}</text>`;
+    ctx.fillStyle = TYPE_COLORS[t];
+    ctx.fillRect(1, y + 1, HEADER - 2, CELL - 2);
+    ctx.fillStyle = 'white';
+    ctx.font = '10px F';
+    ctx.fillText(abbr, 6, y + CELL / 2 + 4);
   });
 
   // Cells
@@ -97,14 +105,19 @@ async function drawTypeChart() {
       const eff = getEffectiveness(atk, def);
       const x = HEADER + di * CELL;
       const y = HEADER + ai * CELL;
-      let bg = '#1e1e3a', text = '', textColor = '#fff';
-      if      (eff === 0)    { bg = '#2a2a2a'; text = 'X';   textColor = '#666'; }
+      let bg = '#1e1e3a', text = '', textColor = '#ffffff';
+      if      (eff === 0)    { bg = '#2a2a2a'; text = 'X';   textColor = '#666666'; }
       else if (eff === 0.25) { bg = '#6b0000'; text = '1/4'; }
       else if (eff === 0.5)  { bg = '#8b1a1a'; text = '1/2'; }
       else if (eff === 2)    { bg = '#1a5c1a'; text = '2';   }
       else if (eff === 4)    { bg = '#0a3d0a'; text = '4';   }
-      svg += `<rect x="${x+1}" y="${y+1}" width="${CELL-2}" height="${CELL-2}" fill="${bg}"/>`;
-      if (text) svg += `<text x="${x+CELL/2}" y="${y+CELL/2+5}" fill="${textColor}" font-size="12" text-anchor="middle">${text}</text>`;
+      ctx.fillStyle = bg;
+      ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
+      if (text) {
+        ctx.fillStyle = textColor;
+        ctx.font = '11px F';
+        ctx.fillText(text, x + (text.length > 1 ? 4 : 13), y + CELL / 2 + 4);
+      }
     });
   });
 
@@ -116,12 +129,21 @@ async function drawTypeChart() {
     { col:'#2a2a2a', label:'X = Immune' },
   ].forEach((item, i) => {
     const lx = 8 + i * 220;
-    svg += `<rect x="${lx}" y="${ly-9}" width="11" height="11" fill="${item.col}"/>`;
-    svg += `<text x="${lx+15}" y="${ly+1}" fill="#bbb" font-size="10">${item.label}</text>`;
+    ctx.fillStyle = item.col;
+    ctx.fillRect(lx, ly - 9, 11, 11);
+    ctx.fillStyle = '#bbbbbb';
+    ctx.font = '10px F';
+    ctx.fillText(item.label, lx + 15, ly + 1);
   });
 
-  svg += '</svg>';
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const stream = new PassThrough();
+    stream.on('data', chunk => chunks.push(chunk));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+    PImage.encodePNGToStream(img, stream).catch(reject);
+  });
 }
 
 // ─── Fetch Pokémon from PokéAPI ──────────────────────────────────────────────
