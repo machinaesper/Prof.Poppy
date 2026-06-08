@@ -61,7 +61,7 @@ async function drawTypeChart() {
     Rock:'ROK', Ghost:'GHO', Dragon:'DRG', Dark:'DRK', Steel:'STL', Fairy:'FAI',
   };
 
-  const font = PImage.registerFont(path.join(__dirname, 'assets', 'font.ttf'), 'F');
+  const font = PImage.registerFont(path.join(__dirname, 'font.ttf'), 'F');
   await font.load();
 
   const CELL = 38, HEADER = 52;
