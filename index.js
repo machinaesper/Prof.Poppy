@@ -56,8 +56,7 @@ async function drawTypeChart() {
   const path = require('path');
 
   // Load embedded font (Roboto Bold) — works on any server without system fonts
-  const fontPath = path.join(__dirname, 'assets', 'font.woff');
-  const fontB64 = fs.readFileSync(fontPath).toString('base64');
+  const fontB64 = require('./fontdata');
   const fontFace = `@font-face { font-family: 'R'; src: url('data:font/woff;base64,${fontB64}') format('woff'); font-weight: bold; }`;
 
   const TYPE_ABBR = {
