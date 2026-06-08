@@ -66,7 +66,7 @@ async function drawTypeChart() {
 
   // Embed a minimal monospace-style font subset via data URI isn't practical
   // Instead use SVG with explicit font stack that works headlessly
-  const fontStack = `'Liberation Sans','FreeSans','Nimbus Sans','DejaVu Sans',Arial,sans-serif`;
+  const fontStack = `'DejaVu Sans','Liberation Sans',Arial,sans-serif`;
 
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">`;
   svg += `<defs><style>text { font-family: ${fontStack}; }</style></defs>`;
@@ -268,56 +268,15 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'elementchart') {
     await interaction.deferReply();
     try {
-      // Build text-based type chart (no image needed)
-      const TYPE_ABBR = {
-        Normal:'NRM', Fire:'FIR', Water:'WTR', Electric:'ELC', Grass:'GRS', Ice:'ICE',
-        Fighting:'FGT', Poison:'PSN', Ground:'GRD', Flying:'FLY', Psychic:'PSY', Bug:'BUG',
-        Rock:'ROK', Ghost:'GHO', Dragon:'DRG', Dark:'DRK', Steel:'STL', Fairy:'FAI',
-      };
-      const TYPE_EMOJI = {
-        Normal:'⬜', Fire:'🔥', Water:'💧', Electric:'⚡', Grass:'🌿', Ice:'❄️',
-        Fighting:'🥊', Poison:'☠️', Ground:'🌍', Flying:'🌬️', Psychic:'🔮', Bug:'🐛',
-        Rock:'🪨', Ghost:'👻', Dragon:'🐉', Dark:'🌑', Steel:'⚙️', Fairy:'🌸',
-      };
-
-      // Split into 3 groups of 6 types each for readability
-      const GROUPS = [
-        TYPES.slice(0, 6),
-        TYPES.slice(6, 12),
-        TYPES.slice(12, 18),
-      ];
-
-      const embeds = [];
-
-      GROUPS.forEach((defTypes, gi) => {
-        const header = '`ATK \\ DEF` ' + defTypes.map(t => TYPE_EMOJI[t] + '`' + TYPE_ABBR[t] + '`').join(' ');
-        const rows = TYPES.map(atk => {
-          const cells = defTypes.map(def => {
-            const eff = getEffectiveness(atk, def);
-            if (eff === 0)    return '` X  `';
-            if (eff === 0.25) return '`1/4 `';
-            if (eff === 0.5)  return '`1/2 `';
-            if (eff === 2)    return '` 2  `';
-            if (eff === 4)    return '` 4  `';
-            return '`  -  `';
-          });
-          return TYPE_EMOJI[atk] + '`' + TYPE_ABBR[atk] + '` ' + cells.join(' ');
-        });
-
-        embeds.push(new EmbedBuilder()
-          .setColor('#1a1a2e')
-          .setTitle(gi === 0 ? '🗺️ Pokémon Type Chart (Gen 6+)' : '\u200b')
-          .setDescription(header + '\n' + rows.join('\n'))
-        );
-      });
-
-      embeds[2].addFields({
-        name: 'คำอธิบาย',
-        value: '`2` = ได้เปรียบ (Super Effective)\n`1/2` = ไม่ได้เปรียบ (Not Very Effective)\n`X` = ไม่ส่งผล (Immune)\n`-` = ปกติ\n\n**แถว = ประเภทโจมตี | คอลัมน์ = ประเภทป้องกัน**',
-      });
-      embeds[2].setFooter({ text: 'ใช้ /check [ชื่อโปเกม่อน] เพื่อดูจุดอ่อนของโปเกม่อนแต่ละตัว' });
-
-      await interaction.editReply({ embeds });
+      const buf = await drawTypeChart();
+      const attachment = new AttachmentBuilder(buf, { name: 'type-chart.png' });
+      const embed = new EmbedBuilder()
+        .setColor('#1a1a2e')
+        .setTitle('🗺️ Pokémon Type Effectiveness Chart (Gen 6+)')
+        .setDescription('**แถว = ประเภทโจมตี | คอลัมน์ = ประเภทป้องกัน**\n🟢 `2` ได้เปรียบ  🔴 `1/2` ไม่ได้เปรียบ  ⬛ `X` Immune')
+        .setImage('attachment://type-chart.png')
+        .setFooter({ text: 'ใช้ /check [ชื่อโปเกม่อน] เพื่อดูจุดอ่อนของโปเกม่อนแต่ละตัว' });
+      await interaction.editReply({ embeds: [embed], files: [attachment] });
     } catch (e) {
       console.error(e);
       await interaction.editReply('❌ เกิดข้อผิดพลาดในการสร้างตาราง');
