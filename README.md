@@ -112,3 +112,4 @@ pokemon-discord-bot/
 
 - อย่าอัปโหลดไฟล์ `.env` ขึ้น GitHub เด็ดขาด
 - เพิ่ม `.env` และ `node_modules/` ใน `.gitignore`
+
