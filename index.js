@@ -49,28 +49,46 @@ function getEffectiveness(attackType, defType1, defType2 = null) {
   return e1 * e2;
 }
 
-// ─── Draw Type Chart Image (SVG → PNG via sharp) ────────────────────────────
+// ─── Draw Type Chart Image ────────────────────────────────────────────────────
 async function drawTypeChart() {
   const sharp = require('sharp');
-  const CELL = 36, HEADER = 100;
-  const W = HEADER + TYPES.length * CELL;
-  const H = HEADER + TYPES.length * CELL + 30;
 
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="font-family:Arial,Helvetica,sans-serif">`;
+  // Abbreviations for type names (3-4 chars, ASCII only)
+  const TYPE_ABBR = {
+    Normal:'NRM', Fire:'FIR', Water:'WTR', Electric:'ELC', Grass:'GRS', Ice:'ICE',
+    Fighting:'FGT', Poison:'PSN', Ground:'GRD', Flying:'FLY', Psychic:'PSY', Bug:'BUG',
+    Rock:'ROK', Ghost:'GHO', Dragon:'DRG', Dark:'DRK', Steel:'STL', Fairy:'FAI',
+  };
+
+  const CELL = 38, HEADER = 52;
+  const W = HEADER + TYPES.length * CELL;
+  const H = HEADER + TYPES.length * CELL + 28;
+
+  // Embed a minimal monospace-style font subset via data URI isn't practical
+  // Instead use SVG with explicit font stack that works headlessly
+  const fontStack = `'Liberation Sans','FreeSans','Nimbus Sans','DejaVu Sans',Arial,sans-serif`;
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">`;
+  svg += `<defs><style>text { font-family: ${fontStack}; }</style></defs>`;
   svg += `<rect width="${W}" height="${H}" fill="#1a1a2e"/>`;
 
-  // Column headers (rotated type names)
+  // Column headers
   TYPES.forEach((t, i) => {
     const x = HEADER + i * CELL;
-    svg += `<rect x="${x+2}" y="4" width="${CELL-4}" height="${HEADER-8}" rx="4" fill="${TYPE_COLORS[t]}"/>`;
-    svg += `<text x="${x + CELL/2}" y="${HEADER/2}" fill="white" font-size="11" font-weight="bold" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90,${x+CELL/2},${HEADER/2})">${t}</text>`;
+    const abbr = TYPE_ABBR[t];
+    svg += `<rect x="${x+1}" y="2" width="${CELL-2}" height="${HEADER-2}" fill="${TYPE_COLORS[t]}" rx="3"/>`;
+    // Draw each char stacked vertically
+    for (let c = 0; c < abbr.length; c++) {
+      svg += `<text x="${x+CELL/2}" y="${8 + c*14}" fill="white" font-size="11" font-weight="bold" text-anchor="middle">${abbr[c]}</text>`;
+    }
   });
 
   // Row headers
   TYPES.forEach((t, i) => {
     const y = HEADER + i * CELL;
-    svg += `<rect x="2" y="${y+2}" width="${HEADER-4}" height="${CELL-4}" rx="4" fill="${TYPE_COLORS[t]}"/>`;
-    svg += `<text x="${HEADER/2}" y="${y+CELL/2}" fill="white" font-size="11" font-weight="bold" text-anchor="middle" dominant-baseline="middle">${t}</text>`;
+    const abbr = TYPE_ABBR[t];
+    svg += `<rect x="1" y="${y+1}" width="${HEADER-2}" height="${CELL-2}" fill="${TYPE_COLORS[t]}" rx="3"/>`;
+    svg += `<text x="${HEADER/2}" y="${y+CELL/2+4}" fill="white" font-size="10" font-weight="bold" text-anchor="middle">${abbr}</text>`;
   });
 
   // Cells
@@ -80,27 +98,26 @@ async function drawTypeChart() {
       const x = HEADER + di * CELL;
       const y = HEADER + ai * CELL;
       let bg = '#1e1e3a', text = '', textColor = '#fff';
-      if (eff === 0)        { bg = '#2a2a2a'; text = '✕'; textColor = '#666'; }
-      else if (eff === 0.25){ bg = '#6b0000'; text = '¼'; }
-      else if (eff === 0.5) { bg = '#8b1a1a'; text = '½'; }
-      else if (eff === 2)   { bg = '#1a5c1a'; text = '2×'; }
-      else if (eff === 4)   { bg = '#0a3d0a'; text = '4×'; }
+      if      (eff === 0)    { bg = '#2a2a2a'; text = 'X';  textColor = '#555'; }
+      else if (eff === 0.25) { bg = '#6b0000'; text = '1/4'; }
+      else if (eff === 0.5)  { bg = '#8b1a1a'; text = '1/2'; }
+      else if (eff === 2)    { bg = '#1a5c1a'; text = '2'; }
+      else if (eff === 4)    { bg = '#0a3d0a'; text = '4'; }
       svg += `<rect x="${x+1}" y="${y+1}" width="${CELL-2}" height="${CELL-2}" fill="${bg}"/>`;
-      if (text) svg += `<text x="${x+CELL/2}" y="${y+CELL/2}" fill="${textColor}" font-size="11" font-weight="bold" text-anchor="middle" dominant-baseline="middle">${text}</text>`;
+      if (text) svg += `<text x="${x+CELL/2}" y="${y+CELL/2+4}" fill="${textColor}" font-size="11" font-weight="bold" text-anchor="middle">${text}</text>`;
     });
   });
 
   // Legend
-  const ly = HEADER + TYPES.length * CELL + 15;
-  const legend = [
-    { col:'#1a5c1a', label:'2x Super Effective' },
-    { col:'#8b1a1a', label:'1/2 Not Very Effective' },
-    { col:'#2a2a2a', label:'X Immune' },
-  ];
-  legend.forEach((item, i) => {
-    const lx = 10 + i * 210;
-    svg += `<rect x="${lx}" y="${ly-8}" width="12" height="12" fill="${item.col}"/>`;
-    svg += `<text x="${lx+16}" y="${ly+2}" fill="#ccc" font-size="11">${item.label}</text>`;
+  const ly = HEADER + TYPES.length * CELL + 14;
+  [
+    { col:'#1a5c1a', label:'2 = Super Effective' },
+    { col:'#8b1a1a', label:'1/2 = Not Very Effective' },
+    { col:'#2a2a2a', label:'X = Immune' },
+  ].forEach((item, i) => {
+    const lx = 8 + i * 220;
+    svg += `<rect x="${lx}" y="${ly-9}" width="11" height="11" fill="${item.col}"/>`;
+    svg += `<text x="${lx+15}" y="${ly+1}" fill="#bbb" font-size="10">${item.label}</text>`;
   });
 
   svg += '</svg>';
