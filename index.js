@@ -299,8 +299,8 @@ client.on('interactionCreate', async (interaction) => {
     await interaction.deferReply();
     try {
       const fetch = (await import('node-fetch')).default;
-      // ดึงรูปตารางธาตุจาก Bulbapedia
-      const imageUrl = 'https://archives.bulbagarden.net/media/upload/thumb/9/97/Type_chart_Gen_VI_and_later.png/1200px-Type_chart_Gen_VI_and_later.png';
+      // ดึงรูปตารางธาตุ
+      const imageUrl = 'https://img.pokemondb.net/images/typechart.png';
       const res = await fetch(imageUrl);
       const buf = Buffer.from(await res.arrayBuffer());
       const attachment = new AttachmentBuilder(buf, { name: 'type-chart.png' });
