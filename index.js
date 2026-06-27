@@ -42,6 +42,40 @@ const TYPE_COLORS = {
   Steel:'#B7B7CE', Fairy:'#D685AD',
 };
 
+// ─── Thai Type Name Mapping ──────────────────────────────────────────────────
+const THAI_TO_TYPE = {
+  'ปกติ':'Normal', 'นอร์มอล':'Normal',
+  'ไฟ':'Fire', 'เพลิง':'Fire',
+  'น้ำ':'Water', 'วอเตอร์':'Water',
+  'ไฟฟ้า':'Electric', 'อิเล็กทริก':'Electric',
+  'หญ้า':'Grass', 'พืช':'Grass', 'กราส':'Grass',
+  'น้ำแข็ง':'Ice', 'ไอซ์':'Ice',
+  'ต่อสู้':'Fighting', 'ฟาย':'Fighting', 'ไฟต์ติ้ง':'Fighting',
+  'พิษ':'Poison', 'พอยซัน':'Poison',
+  'พื้นดิน':'Ground', 'ดิน':'Ground', 'กราวด์':'Ground',
+  'บิน':'Flying', 'ฟลาย':'Flying', 'ฟลายอิ้ง':'Flying',
+  'จิต':'Psychic', 'จิตวิทยา':'Psychic', 'ไซคิก':'Psychic',
+  'แมลง':'Bug', 'บั๊ก':'Bug',
+  'หิน':'Rock', 'ร็อค':'Rock', 'ร็อก':'Rock',
+  'ผี':'Ghost', 'โกสต์':'Ghost',
+  'มังกร':'Dragon', 'ดราก้อน':'Dragon',
+  'มืด':'Dark', 'ดาร์ก':'Dark',
+  'เหล็ก':'Steel', 'โลหะ':'Steel', 'สตีล':'Steel',
+  'นางฟ้า':'Fairy', 'แฟรี่':'Fairy', 'เฟรี่':'Fairy',
+};
+
+function resolveType(input) {
+  const trimmed = input.trim().toLowerCase();
+  // ลองค้นหาชื่อภาษาไทยก่อน
+  for (const [thai, eng] of Object.entries(THAI_TO_TYPE)) {
+    if (trimmed === thai.toLowerCase()) return eng;
+  }
+  // ลองชื่อภาษาอังกฤษ
+  const engMatch = TYPES.find(t => t.toLowerCase() === trimmed);
+  return engMatch || null;
+}
+
+
 function getEffectiveness(attackType, defType1, defType2 = null) {
   const chart = TYPE_CHART[attackType] || {};
   let e1 = chart[defType1] !== undefined ? chart[defType1] : 1;
@@ -279,6 +313,14 @@ async function registerCommands() {
           .setRequired(true)
       ),
     new SlashCommandBuilder()
+      .setName('type')
+      .setDescription('ดูข้อมูลธาตุ ตีแรง ตีเบา และอื่นๆ')
+      .addStringOption(opt =>
+        opt.setName('name')
+          .setDescription('ชื่อธาตุ (ภาษาไทยหรืออังกฤษ) เช่น ไฟ, น้ำ, fire, dragon')
+          .setRequired(true)
+      ),
+    new SlashCommandBuilder()
       .setName('ability')
       .setDescription('ดูข้อมูล Ability และโปเกม่อนที่มี Ability นี้')
       .addStringOption(opt =>
@@ -323,6 +365,60 @@ client.on('interactionCreate', async (interaction) => {
       console.error(e);
       await interaction.editReply('❌ เกิดข้อผิดพลาดในการโหลดตาราง');
     }
+  }
+
+  if (interaction.commandName === 'type') {
+    const query = interaction.options.getString('name');
+    const typeName = resolveType(query);
+
+    if (!typeName) {
+      return interaction.reply(`❌ ไม่พบธาตุ **${query}**\nธาตุที่รองรับ: ไฟ, น้ำ, หญ้า, ไฟฟ้า, น้ำแข็ง, ต่อสู้, พิษ, พื้นดิน, บิน, จิต, แมลง, หิน, ผี, มังกร, มืด, เหล็ก, นางฟ้า, ปกติ`);
+    }
+
+    // คำนวณ offensive (ธาตุนี้โจมตีธาตุอื่น)
+    const superEff = [], notVeryEff = [], noEffect = [];
+    TYPES.forEach(def => {
+      const eff = getEffectiveness(typeName, def);
+      if (eff === 0)   noEffect.push(`${typeEmoji(def)} ${def}`);
+      else if (eff === 2) superEff.push(`${typeEmoji(def)} ${def}`);
+      else if (eff === 0.5) notVeryEff.push(`${typeEmoji(def)} ${def}`);
+    });
+
+    // คำนวณ defensive (ธาตุอื่นโจมตีธาตุนี้)
+    const weakTo = [], resistTo = [], immuneTo = [];
+    TYPES.forEach(atk => {
+      const eff = getEffectiveness(atk, typeName);
+      if (eff === 0)   immuneTo.push(`${typeEmoji(atk)} ${atk}`);
+      else if (eff === 2) weakTo.push(`${typeEmoji(atk)} ${atk}`);
+      else if (eff === 0.5) resistTo.push(`${typeEmoji(atk)} ${atk}`);
+    });
+
+    const embed = new EmbedBuilder()
+      .setColor(TYPE_COLORS[typeName])
+      .setTitle(`${typeEmoji(typeName)} ธาตุ ${typeName}`)
+      .addFields(
+        {
+          name: '⚔️ เมื่อโจมตี',
+          value: [
+            `🟢 **ตีได้เปรียบ (×2):** ${superEff.join('  ') || '—'}`,
+            `🔴 **ตีไม่ได้เปรียบ (×½):** ${notVeryEff.join('  ') || '—'}`,
+            `⬛ **ตีไม่ส่งผล (×0):** ${noEffect.join('  ') || '—'}`,
+          ].join('\n'),
+          inline: false,
+        },
+        {
+          name: '🛡️ เมื่อป้องกัน',
+          value: [
+            `🔴 **แพ้ธาตุ (×2):** ${weakTo.join('  ') || '—'}`,
+            `🟢 **ทนธาตุ (×½):** ${resistTo.join('  ') || '—'}`,
+            `⬛ **ภูมิคุ้มกัน (×0):** ${immuneTo.join('  ') || '—'}`,
+          ].join('\n'),
+          inline: false,
+        }
+      )
+      .setFooter({ text: 'ใช้ /elementchart เพื่อดูตารางธาตุทั้งหมด' });
+
+    await interaction.reply({ embeds: [embed] });
   }
 
   if (interaction.commandName === 'ability') {
