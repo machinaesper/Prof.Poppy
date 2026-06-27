@@ -278,6 +278,14 @@ async function registerCommands() {
           .setDescription('ชื่อภาษาอังกฤษ เช่น charizard, mega-mewtwo-x')
           .setRequired(true)
       ),
+    new SlashCommandBuilder()
+      .setName('ability')
+      .setDescription('ดูข้อมูล Ability และโปเกม่อนที่มี Ability นี้')
+      .addStringOption(opt =>
+        opt.setName('name')
+          .setDescription('ชื่อ Ability ภาษาอังกฤษ เช่น intimidate, levitate, speed-boost')
+          .setRequired(true)
+      ),
   ].map(c => c.toJSON());
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -314,6 +322,62 @@ client.on('interactionCreate', async (interaction) => {
     } catch (e) {
       console.error(e);
       await interaction.editReply('❌ เกิดข้อผิดพลาดในการโหลดตาราง');
+    }
+  }
+
+  if (interaction.commandName === 'ability') {
+    const query = interaction.options.getString('name');
+    await interaction.deferReply();
+    try {
+      const fetch = (await import('node-fetch')).default;
+      const slug = query.toLowerCase().trim().replace(/\s+/g, '-');
+      const res = await fetch(`https://pokeapi.co/api/v2/ability/${slug}`);
+      if (!res.ok) {
+        return interaction.editReply(`❌ ไม่พบ Ability **${query}**\nลองใช้ชื่อภาษาอังกฤษ เช่น \`intimidate\`, \`levitate\`, \`speed-boost\``);
+      }
+      const data = await res.json();
+
+      // ชื่อภาษาอังกฤษ
+      const engName = data.names.find(n => n.language.name === 'en')?.name || data.name;
+
+      // คำอธิบายแบบยาว
+      const effect = data.effect_entries.find(e => e.language.name === 'en')?.effect || 'No description available.';
+
+      // คำอธิบายสั้นจากเกม
+      const flavorText = data.flavor_text_entries
+        .filter(f => f.language.name === 'en')
+        .pop()?.flavor_text?.replace(/\f|\n/g, ' ') || '';
+
+      // โปเกม่อนที่มี ability นี้ (แยก normal/hidden)
+      const normalPokemon = data.pokemon
+        .filter(p => !p.is_hidden)
+        .map(p => capitalize(p.pokemon.name.replace(/-/g, ' ')));
+      const hiddenPokemon = data.pokemon
+        .filter(p => p.is_hidden)
+        .map(p => capitalize(p.pokemon.name.replace(/-/g, ' ')));
+
+      // แสดงแค่ 20 ตัวแรกเพื่อไม่ให้ยาวเกิน
+      const normalStr = normalPokemon.length
+        ? normalPokemon.slice(0, 20).join(', ') + (normalPokemon.length > 20 ? ` _(+${normalPokemon.length - 20} more)_` : '')
+        : '—';
+      const hiddenStr = hiddenPokemon.length
+        ? hiddenPokemon.slice(0, 20).join(', ') + (hiddenPokemon.length > 20 ? ` _(+${hiddenPokemon.length - 20} more)_` : '')
+        : '—';
+
+      const embed = new EmbedBuilder()
+        .setColor('#7AC74C')
+        .setTitle(`✨ ${engName}`)
+        .setDescription(`*${flavorText}*\n\n${effect}`)
+        .addFields(
+          { name: `🔵 Normal Ability (${normalPokemon.length} ตัว)`, value: normalStr, inline: false },
+          { name: `🟣 Hidden Ability (${hiddenPokemon.length} ตัว)`, value: hiddenStr, inline: false },
+        )
+        .setFooter({ text: `Data from PokéAPI • ใช้ /check [ชื่อโปเกม่อน] เพื่อดูข้อมูลเพิ่มเติม` });
+
+      await interaction.editReply({ embeds: [embed] });
+    } catch (e) {
+      console.error(e);
+      await interaction.editReply('❌ เกิดข้อผิดพลาดในการดึงข้อมูล กรุณาลองใหม่อีกครั้ง');
     }
   }
 
